@@ -2,6 +2,7 @@ apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: JujuControlPlane
 metadata:
   labels:
+    cluster.x-k8s.io/cluster-name: cluster-sample
     app.kubernetes.io/name: jujucontrolplane
     app.kubernetes.io/instance: jujucontrolplane-sample
     app.kubernetes.io/part-of: cluster-api-control-plane-provider-juju
@@ -10,3 +11,36 @@ metadata:
   name: jujucontrolplane-sample
 spec:
   # TODO(user): Add fields here
+  foo: bar
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: JujuCluster
+metadata:
+  labels:
+    app.kubernetes.io/name: jujucluster
+    app.kubernetes.io/instance: jujucluster-sample
+    app.kubernetes.io/part-of: cluster-api-provider-juju
+    app.kuberentes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: cluster-api-provider-juju
+  name: jujucluster-sample
+spec:
+  # TODO(user): Add fields here
+  foo: bar
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: cluster-sample
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks: ["192.168.0.0/16"]
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: JujuCluster
+    name: jujucluster-sample
+  controlPlaneRef:
+    kind: JujuControlPlane
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    name: jujucontrolplane-sample
+---
