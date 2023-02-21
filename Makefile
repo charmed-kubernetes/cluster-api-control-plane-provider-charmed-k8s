@@ -1,7 +1,7 @@
 # Registry for images
 REGISTRY ?= rocks.canonical.com:5000
 IMG_PATH ?= /cdk/capi/
-IMG_NAME ?= capi-control-plane-juju-controller
+IMG_NAME ?= capi-control-plane-charmed-k8s-controller
 IMG_TAG ?= latest
 # Image URL to use all building/pushing image targets (note the inclusion of upload)
 IMG ?= upload.$(REGISTRY)$(IMG_PATH)$(IMG_NAME):$(IMG_TAG)

@@ -5,20 +5,25 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
-  name: jujucontrolplanes.controlplane.cluster.x-k8s.io
+  name: charmedk8scontrolplanes.controlplane.cluster.x-k8s.io
 spec:
   group: controlplane.cluster.x-k8s.io
   names:
-    kind: JujuControlPlane
-    listKind: JujuControlPlaneList
-    plural: jujucontrolplanes
-    singular: jujucontrolplane
+    categories:
+    - cluster-api
+    kind: CharmedK8sControlPlane
+    listKind: CharmedK8sControlPlaneList
+    plural: charmedk8scontrolplanes
+    shortNames:
+    - ckcp
+    singular: charmedk8scontrolplane
   scope: Namespaced
   versions:
   - name: v1beta1
     schema:
       openAPIV3Schema:
-        description: JujuControlPlane is the Schema for the jujucontrolplanes API
+        description: CharmedK8sControlPlane is the Schema for the charmedk8scontrolplanes
+          API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,7 +38,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: JujuControlPlaneSpec defines the desired state of JujuControlPlane
+            description: CharmedK8sControlPlaneSpec defines the desired state of CharmedK8sControlPlane
             properties:
               controlPlaneConfig:
                 description: ControlPlaneConfig holds the spec for the control plane
@@ -99,7 +104,8 @@ spec:
             - machineTemplate
             type: object
           status:
-            description: JujuControlPlaneStatus defines the observed state of JujuControlPlane
+            description: CharmedK8sControlPlaneStatus defines the observed state of
+              CharmedK8sControlPlane
             properties:
               conditions:
                 description: Conditions defines current service state of the KubeadmControlPlane.
@@ -155,14 +161,19 @@ spec:
                   reconciling the state, and will be set to a token value suitable
                   for programmatic interpretation.
                 type: string
+              initialized:
+                description: Initialized is true when the target cluster has completed
+                  initialization such that at least once, the target's control plane
+                  has been contactable.
+                type: boolean
               observedGeneration:
                 description: ObservedGeneration is the latest generation observed
                   by the controller.
                 format: int64
                 type: integer
               ready:
-                description: Ready denotes that the JujuControlPlane API Server is
-                  ready to receive requests.
+                description: Ready denotes that the CharmedK8sControlPlane API Server
+                  is ready to receive requests.
                 type: boolean
               readyReplicas:
                 description: Total number of fully running and ready control plane
@@ -189,9 +200,15 @@ spec:
                   that still have not been created.
                 format: int32
                 type: integer
+            required:
+            - initialized
             type: object
         type: object
     served: true
     storage: true
     subresources:
+      scale:
+        labelSelectorPath: .status.selector
+        specReplicasPath: .spec.replicas
+        statusReplicasPath: .status.replicas
       status: {}

@@ -1,20 +1,20 @@
-# permissions for end users to edit jujucontrolplanes.
+# permissions for end users to edit charmedk8scontrolplanes.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: jujucontrolplane-editor-role
+    app.kubernetes.io/instance: charmedk8scontrolplane-editor-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: cluster-api-control-plane-provider-juju
-    app.kubernetes.io/part-of: cluster-api-control-plane-provider-juju
+    app.kubernetes.io/created-by: cluster-api-control-plane-provider-jcharmed-k8s
+    app.kubernetes.io/part-of: cluster-api-control-plane-provider-charmed-k8s
     app.kubernetes.io/managed-by: kustomize
-  name: jujucontrolplane-editor-role
+  name: charmedk8scontrolplane-editor-role
 rules:
 - apiGroups:
   - controlplane.cluster.x-k8s.io
   resources:
-  - jujucontrolplanes
+  - charmedk8scontrolplanes
   verbs:
   - create
   - delete
@@ -26,6 +26,6 @@ rules:
 - apiGroups:
   - controlplane.cluster.x-k8s.io
   resources:
-  - jujucontrolplanes/status
+  - charmedk8scontrolplanes/status
   verbs:
   - get

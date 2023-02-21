@@ -26,6 +26,6 @@ spec:
     kind: JujuCluster
     name: jujucluster-sample
   controlPlaneRef:
-    kind: JujuControlPlane
+    kind: CharmedK8sControlPlane
     apiVersion: controlplane.cluster.x-k8s.io/v1beta1
-    name: jujucontrolplane-sample
+    name: charmedk8scontrolplane-sample

@@ -24,14 +24,14 @@ import (
 )
 
 const (
-	JujuControlPlaneFinalizer = "juju.controlplane.cluster.x-k8s.io"
+	CharmedK8sControlPlaneFinalizer = "charmed-k8s.controlplane.cluster.x-k8s.io"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// JujuControlPlaneSpec defines the desired state of JujuControlPlane
-type JujuControlPlaneSpec struct {
+// CharmedK8sControlPlaneSpec defines the desired state of CharmedK8sControlPlane
+type CharmedK8sControlPlaneSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
@@ -48,8 +48,8 @@ type JujuControlPlaneSpec struct {
 	ControlPlaneConfig bootstrapv1beta1.CharmedK8sConfigSpec `json:"controlPlaneConfig"`
 }
 
-// JujuControlPlaneStatus defines the observed state of JujuControlPlane
-type JujuControlPlaneStatus struct {
+// CharmedK8sControlPlaneStatus defines the observed state of CharmedK8sControlPlane
+type CharmedK8sControlPlaneStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
@@ -78,7 +78,7 @@ type JujuControlPlaneStatus struct {
 	// +optional
 	UnavailableReplicas int32 `json:"unavailableReplicas,omitempty"`
 
-	// Ready denotes that the JujuControlPlane API Server is ready to
+	// Ready denotes that the CharmedK8sControlPlane API Server is ready to
 	// receive requests.
 	// +optional
 	Ready bool `json:"ready"`
@@ -109,38 +109,38 @@ type JujuControlPlaneStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:resource:path=jujucontrolplanes,shortName=kcp,scope=Namespaced,categories=cluster-api
+//+kubebuilder:resource:path=charmedk8scontrolplanes,shortName=ckcp,scope=Namespaced,categories=cluster-api
 //+kubebuilder:storageversion
 //+kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 
-// JujuControlPlane is the Schema for the jujucontrolplanes API
-type JujuControlPlane struct {
+// CharmedK8sControlPlane is the Schema for the charmedk8scontrolplanes API
+type CharmedK8sControlPlane struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   JujuControlPlaneSpec   `json:"spec,omitempty"`
-	Status JujuControlPlaneStatus `json:"status,omitempty"`
+	Spec   CharmedK8sControlPlaneSpec   `json:"spec,omitempty"`
+	Status CharmedK8sControlPlaneStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// JujuControlPlaneList contains a list of JujuControlPlane
-type JujuControlPlaneList struct {
+// CharmedK8sControlPlaneList contains a list of CharmedK8sControlPlane
+type CharmedK8sControlPlaneList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []JujuControlPlane `json:"items"`
+	Items           []CharmedK8sControlPlane `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&JujuControlPlane{}, &JujuControlPlaneList{})
+	SchemeBuilder.Register(&CharmedK8sControlPlane{}, &CharmedK8sControlPlaneList{})
 }
 
 // GetConditions returns the set of conditions for this object.
-func (r *JujuControlPlane) GetConditions() clusterv1.Conditions {
+func (r *CharmedK8sControlPlane) GetConditions() clusterv1.Conditions {
 	return r.Status.Conditions
 }
 
 // SetConditions sets the conditions on this object.
-func (r *JujuControlPlane) SetConditions(conditions clusterv1.Conditions) {
+func (r *CharmedK8sControlPlane) SetConditions(conditions clusterv1.Conditions) {
 	r.Status.Conditions = conditions
 }

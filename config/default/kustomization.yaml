@@ -1,16 +1,16 @@
 # Adds namespace to all resources.
-namespace: capi-juju-control-plane-system
+namespace: capi-charmed-k8s-control-plane-system
 
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
 # "wordpress" becomes "alices-wordpress".
 # Note that it should also match with the prefix (text before '-') of the namespace
 # field above.
-namePrefix: capi-juju-control-plane-
+namePrefix: capi-ck8s-control-plane-
 
 # Labels to add to all resources and selectors.
 commonLabels:
-  cluster.x-k8s.io/provider: "control-plane-juju"
+  cluster.x-k8s.io/provider: "control-plane-charmed-k8s"
 
 bases:
 - ../crd

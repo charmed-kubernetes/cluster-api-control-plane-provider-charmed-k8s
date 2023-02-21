@@ -11,18 +11,18 @@ spec:
 
 
 apiVersion: controlplane.cluster.x-k8s.io/v1beta1
-kind: JujuControlPlane
+kind: CharmedK8sControlPlane
 metadata:
   labels:
     cluster.x-k8s.io/cluster-name: cluster-sample
-    app.kubernetes.io/name: jujucontrolplane
-    app.kubernetes.io/instance: jujucontrolplane-sample
-    app.kubernetes.io/part-of: cluster-api-control-plane-provider-juju
+    app.kubernetes.io/name: charmedk8scontrolplane
+    app.kubernetes.io/instance: charmedk8scontrolplane-sample
+    app.kubernetes.io/part-of: cluster-api-control-plane-provider-charmed-k8s
     app.kuberentes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: cluster-api-control-plane-provider-juju
-  name: jujucontrolplane-sample
+    app.kubernetes.io/created-by: cluster-api-control-plane-provider-charmed-k8s
+  name: charmedk8scontrolplane-sample
 spec:
-  replicas: 3
+  replicas: 1
   machineTemplate:
     kind: JujuMachineTemplate
     apiVersion: infrastructure.cluster.x-k8s.io/v1beta1

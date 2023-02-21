@@ -1,8 +1,8 @@
 domain: cluster.x-k8s.io
 layout:
 - go.kubebuilder.io/v3
-projectName: cluster-api-control-plane-provider-juju
-repo: github.com/charmed-kubernetes/cluster-api-control-plane-provider-juju
+projectName: cluster-api-control-plane-provider-charmed-k8s
+repo: github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s
 resources:
 - api:
     crdVersion: v1
@@ -10,7 +10,7 @@ resources:
   controller: true
   domain: cluster.x-k8s.io
   group: controlplane
-  kind: JujuControlPlane
-  path: github.com/charmed-kubernetes/cluster-api-control-plane-provider-juju/api/v1beta1
+  kind: CharmedK8sControlPlane
+  path: github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/api/v1beta1
   version: v1beta1
 version: "3"

@@ -25,8 +25,8 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	bootstrapv1beta1 "github.com/charmed-kubernetes/cluster-api-bootstrap-provider-charmed-k8s/api/v1beta1"
-	controlplanev1beta1 "github.com/charmed-kubernetes/cluster-api-control-plane-provider-juju/api/v1beta1"
-	"github.com/charmed-kubernetes/cluster-api-control-plane-provider-juju/controllers"
+	controlplanev1beta1 "github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/api/v1beta1"
+	"github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/controllers"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -91,11 +91,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.JujuControlPlaneReconciler{
+	if err = (&controllers.CharmedK8sControlPlaneReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "JujuControlPlane")
+		setupLog.Error(err, "unable to create controller", "controller", "CharmedK8sControlPlane")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

@@ -1,4 +1,4 @@
-module github.com/charmed-kubernetes/cluster-api-control-plane-provider-juju
+module github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s
 
 go 1.19
 
