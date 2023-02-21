@@ -24,7 +24,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	bootstrapv1beta1 "github.com/charmed-kubernetes/cluster-api-bootstrap-provider-juju/api/v1beta1"
+	bootstrapv1beta1 "github.com/charmed-kubernetes/cluster-api-bootstrap-provider-charmed-k8s/api/v1beta1"
 	controlplanev1beta1 "github.com/charmed-kubernetes/cluster-api-control-plane-provider-juju/api/v1beta1"
 	"github.com/charmed-kubernetes/cluster-api-control-plane-provider-juju/controllers"
 	"k8s.io/apimachinery/pkg/runtime"

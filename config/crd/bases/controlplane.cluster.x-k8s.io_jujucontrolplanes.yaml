@@ -35,13 +35,160 @@ spec:
           spec:
             description: JujuControlPlaneSpec defines the desired state of JujuControlPlane
             properties:
-              foo:
-                description: Foo is an example field of JujuControlPlane. Edit jujucontrolplane_types.go
-                  to remove/update
-                type: string
+              controlPlaneConfig:
+                description: ControlPlaneConfig holds the spec for the control plane
+                  bootstrap config defined by the bootstrap provider
+                properties:
+                  controlPlaneApplications:
+                    description: List of Juju applications to deploy to control plane
+                      machines
+                    items:
+                      type: string
+                    type: array
+                  workerApplications:
+                    description: List of Juju applications to deploy to worker machines
+                    items:
+                      type: string
+                    type: array
+                type: object
+              machineTemplate:
+                description: MachineTemplate is the machine template to be used for
+                  creating control plane machines.
+                properties:
+                  apiVersion:
+                    description: API version of the referent.
+                    type: string
+                  fieldPath:
+                    description: 'If referring to a piece of an object instead of
+                      an entire object, this string should contain a valid JSON/Go
+                      field access statement, such as desiredState.manifest.containers[2].
+                      For example, if the object reference is to a container within
+                      a pod, this would take on a value like: "spec.containers{name}"
+                      (where "name" refers to the name of the container that triggered
+                      the event) or if no container name is specified "spec.containers[2]"
+                      (container with index 2 in this pod). This syntax is chosen
+                      only to have some well-defined way of referencing a part of
+                      an object. TODO: this design is not final and this field is
+                      subject to change in the future.'
+                    type: string
+                  kind:
+                    description: 'Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                    type: string
+                  name:
+                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                    type: string
+                  namespace:
+                    description: 'Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/'
+                    type: string
+                  resourceVersion:
+                    description: 'Specific resourceVersion to which this reference
+                      is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency'
+                    type: string
+                  uid:
+                    description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              replicas:
+                description: This is a pointer to distinguish between explicit zero
+                  and not specified.
+                format: int32
+                type: integer
+            required:
+            - controlPlaneConfig
+            - machineTemplate
             type: object
           status:
             description: JujuControlPlaneStatus defines the observed state of JujuControlPlane
+            properties:
+              conditions:
+                description: Conditions defines current service state of the KubeadmControlPlane.
+                items:
+                  description: Condition defines an observation of a Cluster API resource
+                    operational state.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another. This should be when the underlying condition changed.
+                        If that is not known, then using the time when the API field
+                        changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human readable message indicating details about
+                        the transition. This field may be empty.
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition
+                        in CamelCase. The specific API may choose whether or not this
+                        field is considered a guaranteed API. This field may not be
+                        empty.
+                      type: string
+                    severity:
+                      description: Severity provides an explicit classification of
+                        Reason code, so the users or machines can immediately understand
+                        the current situation and act accordingly. The Severity field
+                        MUST be set only when Status=False.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: Type of condition in CamelCase or in foo.example.com/CamelCase.
+                        Many .condition.type values are consistent across resources
+                        like Available, but because arbitrary conditions can be useful
+                        (see .node.status.conditions), the ability to deconflict is
+                        important.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              failureMessage:
+                description: ErrorMessage indicates that there is a terminal problem
+                  reconciling the state, and will be set to a descriptive error message.
+                type: string
+              failureReason:
+                description: FailureReason indicates that there is a terminal problem
+                  reconciling the state, and will be set to a token value suitable
+                  for programmatic interpretation.
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the latest generation observed
+                  by the controller.
+                format: int64
+                type: integer
+              ready:
+                description: Ready denotes that the JujuControlPlane API Server is
+                  ready to receive requests.
+                type: boolean
+              readyReplicas:
+                description: Total number of fully running and ready control plane
+                  machines.
+                format: int32
+                type: integer
+              replicas:
+                description: Total number of non-terminated machines targeted by this
+                  control plane (their labels match the selector).
+                format: int32
+                type: integer
+              selector:
+                description: 'Selector is the label selector in string format to avoid
+                  introspection by clients, and is used to provide the CRD-based integration
+                  for the scale subresource and additional integrations for things
+                  like kubectl describe.. The string will be in the same format as
+                  the query-param syntax. More info about label selectors: http://kubernetes.io/docs/user-guide/labels#label-selectors'
+                type: string
+              unavailableReplicas:
+                description: Total number of unavailable machines targeted by this
+                  control plane. This is the total number of machines that are still
+                  required for the deployment to have 100% available capacity. They
+                  may either be machines that are running but not yet ready or machines
+                  that still have not been created.
+                format: int32
+                type: integer
             type: object
         type: object
     served: true
