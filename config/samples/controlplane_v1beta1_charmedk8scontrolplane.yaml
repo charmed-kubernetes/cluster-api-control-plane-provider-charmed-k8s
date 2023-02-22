@@ -1,0 +1,33 @@
+
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: JujuMachineTemplate
+metadata:
+  name: jujumachinetemplate-controlplane
+spec:
+  template:
+    spec:
+      constraints: "cores=2,mem=8G,root-disk=16G"
+---
+
+
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: CharmedK8sControlPlane
+metadata:
+  labels:
+    cluster.x-k8s.io/cluster-name: cluster-sample
+    app.kubernetes.io/name: charmedk8scontrolplane
+    app.kubernetes.io/instance: charmedk8scontrolplane-sample
+    app.kubernetes.io/part-of: cluster-api-control-plane-provider-charmed-k8s
+    app.kuberentes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: cluster-api-control-plane-provider-charmed-k8s
+  name: charmedk8scontrolplane-sample
+spec:
+  replicas: 1
+  machineTemplate:
+    kind: JujuMachineTemplate
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    name: jujumachinetemplate-controlplane
+  controlPlaneConfig:
+    controlPlaneApplications:
+      - kubernetes-control-plane
+      - etcd

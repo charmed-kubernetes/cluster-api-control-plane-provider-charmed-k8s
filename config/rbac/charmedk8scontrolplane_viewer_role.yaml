@@ -1,44 +1,27 @@
-# permissions to do leader election.
+# permissions for end users to view charmedk8scontrolplanes.
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   labels:
-    app.kubernetes.io/name: role
-    app.kubernetes.io/instance: leader-election-role
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: charmedk8scontrolplane-viewer-role
     app.kubernetes.io/component: rbac
     app.kubernetes.io/created-by: cluster-api-control-plane-provider-charmed-k8s
     app.kubernetes.io/part-of: cluster-api-control-plane-provider-charmed-k8s
     app.kubernetes.io/managed-by: kustomize
-  name: leader-election-role
+  name: charmedk8scontrolplane-viewer-role
 rules:
 - apiGroups:
-  - ""
+  - controlplane.cluster.x-k8s.io
   resources:
-  - configmaps
+  - charmedk8scontrolplanes
   verbs:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
-  - coordination.k8s.io
+  - controlplane.cluster.x-k8s.io
   resources:
-  - leases
+  - charmedk8scontrolplanes/status
   verbs:
   - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch

@@ -30,7 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	controlplanev1beta1 "github.com/charmed-kubernetes/cluster-api-control-plane-provider-juju/api/v1beta1"
+	controlplanev1beta1 "github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/api/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
 

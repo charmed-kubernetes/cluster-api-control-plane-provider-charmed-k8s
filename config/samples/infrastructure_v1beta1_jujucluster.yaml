@@ -1,18 +1,3 @@
-apiVersion: controlplane.cluster.x-k8s.io/v1beta1
-kind: JujuControlPlane
-metadata:
-  labels:
-    cluster.x-k8s.io/cluster-name: cluster-sample
-    app.kubernetes.io/name: jujucontrolplane
-    app.kubernetes.io/instance: jujucontrolplane-sample
-    app.kubernetes.io/part-of: cluster-api-control-plane-provider-juju
-    app.kuberentes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: cluster-api-control-plane-provider-juju
-  name: jujucontrolplane-sample
-spec:
-  # TODO(user): Add fields here
-  foo: bar
----
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: JujuCluster
 metadata:
@@ -24,8 +9,9 @@ metadata:
     app.kubernetes.io/created-by: cluster-api-provider-juju
   name: jujucluster-sample
 spec:
-  # TODO(user): Add fields here
-  foo: bar
+  # using loadbalancer requires metallb on vsphere
+  controllerServiceType: loadbalancer
+  cloudEndpoint: 10.246.152.100
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
@@ -40,7 +26,6 @@ spec:
     kind: JujuCluster
     name: jujucluster-sample
   controlPlaneRef:
-    kind: JujuControlPlane
+    kind: CharmedK8sControlPlane
     apiVersion: controlplane.cluster.x-k8s.io/v1beta1
-    name: jujucontrolplane-sample
----
+    name: charmedk8scontrolplane-sample

@@ -5,8 +5,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: proxy-role
     app.kubernetes.io/component: kube-rbac-proxy
-    app.kubernetes.io/created-by: cluster-api-control-plane-provider-juju
-    app.kubernetes.io/part-of: cluster-api-control-plane-provider-juju
+    app.kubernetes.io/created-by: cluster-api-control-plane-provider-charmed-k8s
+    app.kubernetes.io/part-of: cluster-api-control-plane-provider-charmed-k8s
     app.kubernetes.io/managed-by: kustomize
   name: proxy-role
 rules:
