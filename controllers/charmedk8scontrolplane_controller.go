@@ -20,12 +20,16 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
+	kcore "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -42,8 +46,22 @@ import (
 	bootstrapv1beta1 "github.com/charmed-kubernetes/cluster-api-bootstrap-provider-charmed-k8s/api/v1beta1"
 
 	controlplanev1beta1 "github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/api/v1beta1"
+	"github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/juju"
 	"github.com/pkg/errors"
 )
+
+const controllerDataSecretName = "juju-controller-data"
+
+type JujuConfig struct {
+	Details struct {
+		APIEndpoints []string `yaml:"api-endpoints"`
+		CACert       string   `yaml:"ca-cert"`
+	}
+	Account struct {
+		User     string `yaml:"user"`
+		Password string `yaml:"password"`
+	}
+}
 
 // ControlPlane holds business logic around control planes.
 // It should never need to connect to a service, that responsibility lies outside of this struct.
@@ -159,14 +177,26 @@ func (r *CharmedK8sControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 	}
 	conditions.SetAggregate(kcp, controlplanev1beta1.MachinesReadyCondition, conditionGetters, conditions.AddSourceRef(), conditions.WithStepCounterIf(false))
 
-	log.Info("reconciling machines")
-	result, err := r.reconcileMachines(ctx, cluster, kcp, ownedMachines)
-	if err != nil {
-		log.Error(err, "error reconciling machines")
-		return ctrl.Result{}, err
+	var (
+		errs        error
+		result      ctrl.Result
+		phaseResult ctrl.Result
+	)
+
+	// run all similar reconcile steps in the loop and pick the lowest RetryAfter, aggregate errors and check the requeue flags.
+	for _, phase := range []func(context.Context, *clusterv1.Cluster, *controlplanev1beta1.CharmedK8sControlPlane, []clusterv1.Machine) (ctrl.Result, error){
+		r.reconcileKubeconfig,
+		r.reconcileMachines,
+	} {
+		phaseResult, err = phase(ctx, cluster, kcp, ownedMachines)
+		if err != nil {
+			errs = kerrors.NewAggregate([]error{errs, err})
+		}
+
+		result = util.LowestNonZeroResult(result, phaseResult)
 	}
 
-	return result, nil
+	return result, errs
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -218,6 +248,7 @@ func (r *CharmedK8sControlPlaneReconciler) getControlPlaneMachinesForCluster(ctx
 
 func (r *CharmedK8sControlPlaneReconciler) reconcileMachines(ctx context.Context, cluster *clusterv1.Cluster, kcp *controlplanev1beta1.CharmedK8sControlPlane, machines []clusterv1.Machine) (res ctrl.Result, err error) {
 	log := log.FromContext(ctx)
+	log.Info("reconciling machines")
 	// If we've made it this far, we can assume that all ownedMachines are up to date
 	numMachines := len(machines)
 	desiredReplicas := int(*kcp.Spec.Replicas)
@@ -470,4 +501,96 @@ func (r *CharmedK8sControlPlaneReconciler) generateBootstrapConfig(ctx context.C
 	}
 
 	return bootstrapRef, nil
+}
+
+func (r *CharmedK8sControlPlaneReconciler) reconcileKubeconfig(ctx context.Context, cluster *clusterv1.Cluster, kcp *controlplanev1beta1.CharmedK8sControlPlane, machines []clusterv1.Machine) (ctrl.Result, error) {
+	log := log.FromContext(ctx)
+	log.Info("reconciling kubeconfig")
+	endpoint := cluster.Spec.ControlPlaneEndpoint
+	if endpoint.IsZero() {
+		return ctrl.Result{}, nil
+	}
+
+	// Get config data from secret
+	jujuConfig, err := getJujuConfigFromSecret(ctx, cluster, r.Client)
+	if err != nil {
+		log.Error(err, "failed to retrieve juju configuration data from secret")
+		return ctrl.Result{}, err
+	}
+	if jujuConfig == nil {
+		log.Error(err, "juju controller configuration was nil")
+		return ctrl.Result{}, err
+	}
+
+	connectorConfig := juju.Configuration{
+		ControllerAddresses: jujuConfig.Details.APIEndpoints,
+		Username:            jujuConfig.Account.User,
+		Password:            jujuConfig.Account.Password,
+		CACert:              jujuConfig.Details.CACert,
+	}
+
+	jujuClient, err := juju.NewClient(connectorConfig)
+	if err != nil {
+		log.Error(err, "failed to create juju client")
+		return ctrl.Result{}, err
+	}
+
+	modelUUID, err := jujuClient.Models.GetModelUUID(ctx, cluster.Name)
+	if err != nil {
+		log.Error(err, "failed to get model UUID")
+		return ctrl.Result{}, err
+	}
+	results, err := jujuClient.Keys.ListKeys(ctx, modelUUID)
+	if err != nil {
+		log.Error(err, "failed to list current ssh keys")
+		return ctrl.Result{}, err
+	}
+	if len(results) == 0 {
+		log.Info("no keys added, adding a new one now")
+		result, err := jujuClient.Keys.AddKey(ctx, modelUUID, "this is a public key")
+		if err != nil {
+			log.Error(err, "failed to add ssh key")
+			return ctrl.Result{}, err
+		}
+		if result.Error != nil {
+			log.Error(result.Error, "failed to add ssh key")
+			return ctrl.Result{}, result.Error
+		}
+
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+
+	} else {
+		log.Info("keys exist", "keys", results)
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func getJujuConfigFromSecret(ctx context.Context, cluster *clusterv1.Cluster, c client.Client) (*JujuConfig, error) {
+	log := log.FromContext(ctx)
+
+	configSecret := &kcore.Secret{}
+	objectKey := client.ObjectKey{
+		Namespace: cluster.Namespace,
+		Name:      controllerDataSecretName,
+	}
+	if err := c.Get(ctx, objectKey, configSecret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+	data := string(configSecret.Data["controller-data"][:])
+	split := strings.Split(data, fmt.Sprintf("%s:\n", cluster.Name+"-k8s-cloud"))
+	yam := split[1]
+	config := JujuConfig{}
+	err := yaml.Unmarshal([]byte(yam), &config)
+	if err != nil {
+		log.Error(err, "error unmarshalling YAML data into config struct")
+		return nil, err
+	}
+
+	return &config, nil
+
 }
