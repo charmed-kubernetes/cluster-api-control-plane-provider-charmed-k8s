@@ -94,6 +94,9 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              operationID:
+                description: Set by the controller when creating the kubeconfig
+                type: string
               replicas:
                 description: This is a pointer to distinguish between explicit zero
                   and not specified.

@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	bootstrapv1beta1 "github.com/charmed-kubernetes/cluster-api-bootstrap-provider-charmed-k8s/api/v1beta1"
+	"github.com/juju/juju/api/client/action"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	kcore "k8s.io/api/core/v1"
@@ -42,8 +44,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	bootstrapv1beta1 "github.com/charmed-kubernetes/cluster-api-bootstrap-provider-charmed-k8s/api/v1beta1"
 
 	controlplanev1beta1 "github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/api/v1beta1"
 	"github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/juju"
@@ -535,32 +535,55 @@ func (r *CharmedK8sControlPlaneReconciler) reconcileKubeconfig(ctx context.Conte
 		return ctrl.Result{}, err
 	}
 
-	modelUUID, err := jujuClient.Models.GetModelUUID(ctx, cluster.Name)
+	modelUUID, err := jujuClient.Models.GetModelUUID(ctx, "jujucluster-sample")
 	if err != nil {
 		log.Error(err, "failed to get model UUID")
 		return ctrl.Result{}, err
 	}
-	results, err := jujuClient.Keys.ListKeys(ctx, modelUUID)
-	if err != nil {
-		log.Error(err, "failed to list current ssh keys")
-		return ctrl.Result{}, err
+	if modelUUID == "" {
+		log.Info("model uuid was empty", "model", "jujucluster-sample")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
-	if len(results) == 0 {
-		log.Info("no keys added, adding a new one now")
-		result, err := jujuClient.Keys.AddKey(ctx, modelUUID, "this is a public key")
+
+	if kcp.Spec.OperationID == nil {
+		log.Info("operationID was nil, enqueuing action to get kubeconfig from the control plane leader")
+		getKubeConfigAction := action.Action{
+			Receiver: "easyrsa/leader",
+			Name:     "list-backups",
+		}
+		enqueuedActions, err := jujuClient.Actions.EnqueueOperation(ctx, []action.Action{getKubeConfigAction}, modelUUID)
 		if err != nil {
-			log.Error(err, "failed to add ssh key")
+			log.Error(err, "failed to enqueue action", "action", getKubeConfigAction)
 			return ctrl.Result{}, err
 		}
-		if result.Error != nil {
-			log.Error(result.Error, "failed to add ssh key")
-			return ctrl.Result{}, result.Error
+
+		kcp.Spec.OperationID = &enqueuedActions.OperationID
+		if err := r.Update(ctx, kcp); err != nil {
+			log.Error(err, "error updating operation id")
+			return ctrl.Result{}, err
 		}
-
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-
+		log.Info("successfully updated control plane", "Spec.OperationID", &kcp.Spec.OperationID)
+		// object will re reconcile upon update of the spec
+		return ctrl.Result{}, nil
 	} else {
-		log.Info("keys exist", "keys", results)
+		// OperationID is set, which means we need to check for completion
+		operation, err := jujuClient.Actions.GetOperation(ctx, *kcp.Spec.OperationID, modelUUID)
+		if err != nil {
+			log.Error(err, "error getting operation", "ID", *kcp.Spec.OperationID)
+		}
+		// check for completion
+		if !(operation.Status == "completed") {
+			log.Info("operation is not complete, requeueing", "operation", operation)
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		} else {
+			log.Info("operation is complete", "operation", operation)
+			if len(operation.Actions) != 1 {
+				log.Error(nil, "expected 1 action", "got", len(operation.Actions))
+			} else {
+				actionResult := operation.Actions[0]
+				log.Info("action output", "output", actionResult.Output)
+			}
+		}
 	}
 
 	return ctrl.Result{}, nil
