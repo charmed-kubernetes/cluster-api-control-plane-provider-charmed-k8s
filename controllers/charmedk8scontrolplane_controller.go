@@ -26,7 +26,6 @@ import (
 	bootstrapv1beta1 "github.com/charmed-kubernetes/cluster-api-bootstrap-provider-charmed-k8s/api/v1beta1"
 	"github.com/juju/juju/api/client/action"
 	"gopkg.in/yaml.v2"
-	corev1 "k8s.io/api/core/v1"
 	kcore "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -207,7 +206,7 @@ func (r *CharmedK8sControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) er
 		Complete(r)
 }
 
-func (r *CharmedK8sControlPlaneReconciler) reconcileExternalReference(ctx context.Context, ref corev1.ObjectReference, cluster *clusterv1.Cluster) error {
+func (r *CharmedK8sControlPlaneReconciler) reconcileExternalReference(ctx context.Context, ref kcore.ObjectReference, cluster *clusterv1.Cluster) error {
 	obj, err := external.Get(ctx, r.Client, &ref, cluster.Namespace)
 	if err != nil {
 		return err
@@ -462,7 +461,7 @@ func (r *CharmedK8sControlPlaneReconciler) reconcileDelete(ctx context.Context, 
 		}
 	}
 
-	kubeConfigSecret := &corev1.Secret{
+	kubeConfigSecret := &kcore.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: cluster.Namespace,
 			Name:      cluster.Name + "-kubeconfig",
@@ -477,7 +476,7 @@ func (r *CharmedK8sControlPlaneReconciler) reconcileDelete(ctx context.Context, 
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
-func (r *CharmedK8sControlPlaneReconciler) generateBootstrapConfig(ctx context.Context, kcp *controlplanev1beta1.CharmedK8sControlPlane, spec *bootstrapv1beta1.CharmedK8sConfigSpec) (*corev1.ObjectReference, error) {
+func (r *CharmedK8sControlPlaneReconciler) generateBootstrapConfig(ctx context.Context, kcp *controlplanev1beta1.CharmedK8sControlPlane, spec *bootstrapv1beta1.CharmedK8sConfigSpec) (*kcore.ObjectReference, error) {
 	log := log.FromContext(ctx)
 	log.Info("generating bootstrap config", "spec", spec)
 	owner := metav1.OwnerReference{
@@ -501,7 +500,7 @@ func (r *CharmedK8sControlPlaneReconciler) generateBootstrapConfig(ctx context.C
 		return nil, errors.Wrap(err, "Failed to create bootstrap configuration")
 	}
 
-	bootstrapRef := &corev1.ObjectReference{
+	bootstrapRef := &kcore.ObjectReference{
 		APIVersion: bootstrapv1beta1.GroupVersion.String(),
 		Kind:       "CharmedK8sConfig",
 		Name:       bootstrapConfig.GetName(),
