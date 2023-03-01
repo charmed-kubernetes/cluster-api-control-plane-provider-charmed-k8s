@@ -31,6 +31,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/utils/pointer"
@@ -78,7 +79,7 @@ type CharmedK8sControlPlaneReconciler struct {
 }
 
 // +kubebuilder:rbac:groups=core,resources=events,verbs=get;list;watch;create;patch
-// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io;bootstrap.cluster.x-k8s.io;controlplane.cluster.x-k8s.io,resources=*,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;clusters/status,verbs=get;list;watch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines;machines/status,verbs=get;list;watch;create;update;patch;delete
@@ -461,7 +462,15 @@ func (r *CharmedK8sControlPlaneReconciler) reconcileDelete(ctx context.Context, 
 		}
 	}
 
-	// TODO: clean up secrets for kubeconfig once that is implemented
+	kubeConfigSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: cluster.Namespace,
+			Name:      cluster.Name + "-kubeconfig",
+		},
+	}
+	if err := r.Client.Delete(ctx, kubeConfigSecret); err != nil && !apierrors.IsNotFound(err) {
+		log.Error(err, "failed to delete kubeconfig secret", "secret", kubeConfigSecret.Name)
+	}
 
 	conditions.MarkFalse(kcp, clusterv1.ResizedCondition, clusterv1.DeletingReason, clusterv1.ConditionSeverityInfo, "")
 	// Requeue the deletion so we can check to make sure machines got cleaned up
@@ -511,77 +520,96 @@ func (r *CharmedK8sControlPlaneReconciler) reconcileKubeconfig(ctx context.Conte
 		return ctrl.Result{}, nil
 	}
 
-	// Get config data from secret
-	jujuConfig, err := getJujuConfigFromSecret(ctx, cluster, r.Client)
-	if err != nil {
-		log.Error(err, "failed to retrieve juju configuration data from secret")
-		return ctrl.Result{}, err
-	}
-	if jujuConfig == nil {
-		log.Error(err, "juju controller configuration was nil")
-		return ctrl.Result{}, err
-	}
+	kubeConfigSecret := &kcore.Secret{}
+	kubeConfigSecret.Name = cluster.Name + "-kubeconfig"
+	kubeConfigSecret.Namespace = cluster.Namespace
 
-	connectorConfig := juju.Configuration{
-		ControllerAddresses: jujuConfig.Details.APIEndpoints,
-		Username:            jujuConfig.Account.User,
-		Password:            jujuConfig.Account.Password,
-		CACert:              jujuConfig.Details.CACert,
-	}
+	err := r.Get(ctx, types.NamespacedName{Name: kubeConfigSecret.Name, Namespace: kubeConfigSecret.Namespace}, kubeConfigSecret)
+	if err != nil && apierrors.IsNotFound(err) {
 
-	jujuClient, err := juju.NewClient(connectorConfig)
-	if err != nil {
-		log.Error(err, "failed to create juju client")
-		return ctrl.Result{}, err
-	}
-
-	modelUUID, err := jujuClient.Models.GetModelUUID(ctx, "jujucluster-sample")
-	if err != nil {
-		log.Error(err, "failed to get model UUID")
-		return ctrl.Result{}, err
-	}
-	if modelUUID == "" {
-		log.Info("model uuid was empty", "model", "jujucluster-sample")
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-	}
-
-	if kcp.Spec.OperationID == nil {
-		log.Info("operationID was nil, enqueuing action to get kubeconfig from the control plane leader")
-		getKubeConfigAction := action.Action{
-			Receiver: "easyrsa/leader",
-			Name:     "list-backups",
-		}
-		enqueuedActions, err := jujuClient.Actions.EnqueueOperation(ctx, []action.Action{getKubeConfigAction}, modelUUID)
+		// Get config data from secret
+		jujuConfig, err := getJujuConfigFromSecret(ctx, cluster, r.Client)
 		if err != nil {
-			log.Error(err, "failed to enqueue action", "action", getKubeConfigAction)
+			log.Error(err, "failed to retrieve juju configuration data from secret")
+			return ctrl.Result{}, err
+		}
+		if jujuConfig == nil {
+			log.Error(err, "juju controller configuration was nil")
 			return ctrl.Result{}, err
 		}
 
-		kcp.Spec.OperationID = &enqueuedActions.OperationID
-		if err := r.Update(ctx, kcp); err != nil {
-			log.Error(err, "error updating operation id")
+		connectorConfig := juju.Configuration{
+			ControllerAddresses: jujuConfig.Details.APIEndpoints,
+			Username:            jujuConfig.Account.User,
+			Password:            jujuConfig.Account.Password,
+			CACert:              jujuConfig.Details.CACert,
+		}
+
+		jujuClient, err := juju.NewClient(connectorConfig)
+		if err != nil {
+			log.Error(err, "failed to create juju client")
 			return ctrl.Result{}, err
 		}
-		log.Info("successfully updated control plane", "Spec.OperationID", &kcp.Spec.OperationID)
-		// object will re reconcile upon update of the spec
-		return ctrl.Result{}, nil
-	} else {
-		// OperationID is set, which means we need to check for completion
-		operation, err := jujuClient.Actions.GetOperation(ctx, *kcp.Spec.OperationID, modelUUID)
+
+		modelUUID, err := jujuClient.Models.GetModelUUID(ctx, "jujucluster-sample")
 		if err != nil {
-			log.Error(err, "error getting operation", "ID", *kcp.Spec.OperationID)
+			log.Error(err, "failed to get model UUID")
+			return ctrl.Result{}, err
 		}
-		// check for completion
-		if !(operation.Status == "completed") {
-			log.Info("operation is not complete, requeueing", "operation", operation)
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		if modelUUID == "" {
+			log.Info("model uuid was empty", "model", "jujucluster-sample")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
+		if kcp.Spec.OperationID == nil {
+			log.Info("operationID was nil, enqueuing action to get kubeconfig from the control plane leader")
+			getKubeConfigAction := action.Action{
+				Receiver: "easyrsa/leader",
+				Name:     "list-backups",
+			}
+			enqueuedActions, err := jujuClient.Actions.EnqueueOperation(ctx, []action.Action{getKubeConfigAction}, modelUUID)
+			if err != nil {
+				log.Error(err, "failed to enqueue action", "action", getKubeConfigAction)
+				return ctrl.Result{}, err
+			}
+
+			kcp.Spec.OperationID = &enqueuedActions.OperationID
+			if err := r.Update(ctx, kcp); err != nil {
+				log.Error(err, "error updating operation id")
+				return ctrl.Result{}, err
+			}
+			log.Info("successfully updated control plane", "Spec.OperationID", &kcp.Spec.OperationID)
+			// object will re reconcile upon update of the spec
+			return ctrl.Result{}, nil
 		} else {
-			log.Info("operation is complete", "operation", operation)
-			if len(operation.Actions) != 1 {
-				log.Error(nil, "expected 1 action", "got", len(operation.Actions))
+			// OperationID is set, which means we need to check for completion
+			operation, err := jujuClient.Actions.GetOperation(ctx, *kcp.Spec.OperationID, modelUUID)
+			if err != nil {
+				log.Error(err, "error getting operation", "ID", *kcp.Spec.OperationID)
+			}
+			// check for completion
+			if !(operation.Status == "completed") {
+				log.Info("operation is not complete, requeueing", "operation", operation)
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 			} else {
-				actionResult := operation.Actions[0]
-				log.Info("action output", "output", actionResult.Output)
+				log.Info("operation is complete", "operation", operation)
+				if len(operation.Actions) != 1 {
+					log.Error(nil, "expected 1 action", "got", len(operation.Actions))
+					return ctrl.Result{}, err
+				} else {
+					actionResult := operation.Actions[0]
+					log.Info("action output", "output", actionResult.Output)
+					kubeConfigSecret.Type = kcore.SecretTypeOpaque
+					kubeConfigSecret.Data = map[string][]byte{}
+					kubeConfigSecret.Data["value"] = []byte(string("kubeconfig goes here"))
+
+					if err := r.Create(ctx, kubeConfigSecret); err != nil {
+						log.Error(err, "failed to create kubeconfig secret")
+						return ctrl.Result{}, err
+					}
+
+					return ctrl.Result{}, nil
+				}
 			}
 		}
 	}
