@@ -3,9 +3,7 @@ module github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-
 go 1.19
 
 require (
-	github.com/juju/charm/v9 v9.0.6
-	github.com/juju/juju v0.0.0-20230224170340-13e69e5c781a
-	github.com/juju/names/v4 v4.0.0
+	github.com/charmed-kubernetes/cluster-api-provider-juju v0.0.0-20230309155616-f1f9ca5b1353
 	github.com/onsi/ginkgo/v2 v2.1.4
 	github.com/onsi/gomega v1.19.0
 	k8s.io/apimachinery v0.25.0
@@ -15,6 +13,7 @@ require (
 )
 
 require (
+	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.9.1 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.3.0 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.2.1 // indirect
@@ -25,19 +24,30 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.2.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.4.1 // indirect
 	github.com/aws/smithy-go v1.8.0 // indirect
+	github.com/canonical/pebble v0.0.0-20221010231311-dfff36380603 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/fatih/color v1.13.0 // indirect
 	github.com/go-macaroon-bakery/macaroon-bakery/v3 v3.0.1 // indirect
 	github.com/go-macaroon-bakery/macaroonpb v1.0.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/godbus/dbus/v5 v5.0.4 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
+	github.com/hashicorp/go-hclog v1.2.0 // indirect
+	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
+	github.com/hashicorp/go-msgpack v0.5.5 // indirect
+	github.com/hashicorp/golang-lru v0.5.4 // indirect
+	github.com/hashicorp/raft v1.3.2-0.20210825230038-1a621031eb2b // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/juju/ansiterm v1.0.0 // indirect
-	github.com/juju/charm/v10 v10.0.0 // indirect
+	github.com/juju/blobstore/v3 v3.0.2 // indirect
+	github.com/juju/charm/v9 v9.0.6 // indirect
+	github.com/juju/charmrepo/v7 v7.0.1 // indirect
 	github.com/juju/clock v1.0.3 // indirect
 	github.com/juju/cmd/v3 v3.0.4 // indirect
 	github.com/juju/collections v1.0.2 // indirect
+	github.com/juju/description/v4 v4.0.5 // indirect
 	github.com/juju/errors v1.0.0 // indirect
 	github.com/juju/featureflag v1.0.0 // indirect
 	github.com/juju/gnuflag v1.0.0 // indirect
@@ -48,15 +58,18 @@ require (
 	github.com/juju/http/v2 v2.0.0 // indirect
 	github.com/juju/idmclient/v2 v2.0.0 // indirect
 	github.com/juju/jsonschema v1.0.0 // indirect
+	github.com/juju/juju v0.0.0-20230104110346-0297211162d4 // indirect
 	github.com/juju/loggo v1.0.0 // indirect
 	github.com/juju/lru v1.0.0 // indirect
 	github.com/juju/lumberjack/v2 v2.0.2 // indirect
 	github.com/juju/mgo/v3 v3.0.3 // indirect
 	github.com/juju/mutex/v2 v2.0.0 // indirect
+	github.com/juju/names/v4 v4.0.0 // indirect
 	github.com/juju/os/v2 v2.2.3 // indirect
 	github.com/juju/packaging/v2 v2.0.1 // indirect
 	github.com/juju/persistent-cookiejar v1.0.0 // indirect
 	github.com/juju/proxy v1.0.0 // indirect
+	github.com/juju/pubsub/v2 v2.0.0 // indirect
 	github.com/juju/replicaset/v3 v3.0.1 // indirect
 	github.com/juju/retry v1.0.0 // indirect
 	github.com/juju/rfc/v2 v2.0.0 // indirect
@@ -70,6 +83,7 @@ require (
 	github.com/juju/webbrowser v1.0.0 // indirect
 	github.com/juju/worker/v3 v3.1.0 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
+	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lestrrat/go-jspointer v0.0.0-20160229021354-f4881e611bdb // indirect
@@ -93,7 +107,7 @@ require (
 	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
 	github.com/xdg-go/stringprep v1.0.3 // indirect
-	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
+	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0 // indirect
 	gopkg.in/errgo.v1 v1.0.1 // indirect
 	gopkg.in/gobwas/glob.v0 v0.2.3 // indirect
 	gopkg.in/httprequest.v1 v1.2.1 // indirect

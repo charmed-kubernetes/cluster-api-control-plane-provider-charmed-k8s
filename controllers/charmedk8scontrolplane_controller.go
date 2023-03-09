@@ -24,7 +24,6 @@ import (
 	"time"
 
 	bootstrapv1beta1 "github.com/charmed-kubernetes/cluster-api-bootstrap-provider-charmed-k8s/api/v1beta1"
-	"github.com/juju/juju/api/client/action"
 	"gopkg.in/yaml.v2"
 	kcore "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -46,7 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	controlplanev1beta1 "github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/api/v1beta1"
-	"github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/juju"
+	juju "github.com/charmed-kubernetes/cluster-api-provider-juju/juju"
 	"github.com/pkg/errors"
 )
 
@@ -574,13 +573,13 @@ func (r *CharmedK8sControlPlaneReconciler) reconcileKubeconfig(ctx context.Conte
 		if activeIdle {
 			if kcp.Spec.GetKubeConfigOperationID == nil {
 				log.Info("operationID was nil, enqueuing action to get kubeconfig from the control plane leader")
-				getKubeConfigAction := action.Action{
+				enqueueInput := juju.EnqueueOperationInput{
 					Receiver: "kubernetes-control-plane/leader",
 					Name:     "get-kubeconfig",
 				}
-				enqueuedActions, err := jujuClient.Actions.EnqueueOperation(ctx, []action.Action{getKubeConfigAction}, modelUUID)
+				enqueuedActions, err := jujuClient.Actions.EnqueueOperation(ctx, enqueueInput, modelUUID)
 				if err != nil {
-					log.Error(err, "failed to enqueue action", "action", getKubeConfigAction)
+					log.Error(err, "failed to enqueue action using input", "input", enqueueInput)
 					return ctrl.Result{}, err
 				}
 
