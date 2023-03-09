@@ -623,7 +623,6 @@ func (r *CharmedK8sControlPlaneReconciler) reconcileKubeconfig(ctx context.Conte
 						actionResult := operation.Actions[0]
 						log.Info("action output", "output", actionResult.Output)
 						kubeconfig, keyExists := actionResult.Output["kubeconfig"]
-						// If the key exists
 						if !keyExists {
 							log.Error(nil, "action result missing key kubeconfig")
 							return ctrl.Result{}, errors.New("invalid action result format")
