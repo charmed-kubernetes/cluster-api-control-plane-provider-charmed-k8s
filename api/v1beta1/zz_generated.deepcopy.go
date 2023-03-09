@@ -95,8 +95,8 @@ func (in *CharmedK8sControlPlaneSpec) DeepCopyInto(out *CharmedK8sControlPlaneSp
 	}
 	out.MachineTemplate = in.MachineTemplate
 	in.ControlPlaneConfig.DeepCopyInto(&out.ControlPlaneConfig)
-	if in.OperationID != nil {
-		in, out := &in.OperationID, &out.OperationID
+	if in.GetKubeConfigOperationID != nil {
+		in, out := &in.GetKubeConfigOperationID, &out.GetKubeConfigOperationID
 		*out = new(string)
 		**out = **in
 	}

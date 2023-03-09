@@ -56,6 +56,9 @@ spec:
                       type: string
                     type: array
                 type: object
+              getKubeConfigOperationID:
+                description: Set by the controller when creating the kubeconfig
+                type: string
               machineTemplate:
                 description: MachineTemplate is the machine template to be used for
                   creating control plane machines.
@@ -94,9 +97,6 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
-              operationID:
-                description: Set by the controller when creating the kubeconfig
-                type: string
               replicas:
                 description: This is a pointer to distinguish between explicit zero
                   and not specified.

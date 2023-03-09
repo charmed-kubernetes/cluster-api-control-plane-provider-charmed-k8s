@@ -48,7 +48,7 @@ type CharmedK8sControlPlaneSpec struct {
 	ControlPlaneConfig bootstrapv1beta1.CharmedK8sConfigSpec `json:"controlPlaneConfig"`
 
 	// Set by the controller when creating the kubeconfig
-	OperationID *string `json:"operationID,omitempty"`
+	GetKubeConfigOperationID *string `json:"getKubeConfigOperationID,omitempty"`
 }
 
 // CharmedK8sControlPlaneStatus defines the observed state of CharmedK8sControlPlane
