@@ -3,7 +3,7 @@ module github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-
 go 1.19
 
 require (
-	github.com/charmed-kubernetes/cluster-api-provider-juju v0.0.0-20230309155616-f1f9ca5b1353
+	github.com/charmed-kubernetes/cluster-api-provider-juju v0.0.0-20230313164432-7338531245c8
 	github.com/onsi/ginkgo/v2 v2.1.4
 	github.com/onsi/gomega v1.19.0
 	k8s.io/apimachinery v0.25.0
