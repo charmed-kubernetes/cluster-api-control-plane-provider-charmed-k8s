@@ -56,6 +56,9 @@ spec:
                       type: string
                     type: array
                 type: object
+              getKubeConfigOperationID:
+                description: Set by the controller when creating the kubeconfig
+                type: string
               machineTemplate:
                 description: MachineTemplate is the machine template to be used for
                   creating control plane machines.
