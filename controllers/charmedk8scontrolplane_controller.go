@@ -152,6 +152,24 @@ func (r *CharmedK8sControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// add the finalizer and update the object. This is equivalent registering
+	// our finalizer.
+	if !controllerutil.ContainsFinalizer(kcp, controlplanev1beta1.CharmedK8sControlPlaneFinalizer) {
+		controllerutil.AddFinalizer(kcp, controlplanev1beta1.CharmedK8sControlPlaneFinalizer)
+		if err := r.Update(ctx, kcp); err != nil {
+			return ctrl.Result{}, err
+		}
+		log.Info("added finalizer")
+		return ctrl.Result{}, nil
+	}
+
+	// examine DeletionTimestamp to determine if object is under deletion
+	if !kcp.ObjectMeta.DeletionTimestamp.IsZero() {
+		// The control plane object is being deleted
+		log.Info("deleting control plane")
+		return r.reconcileDelete(ctx, cluster, kcp)
+	}
+
 	if !cluster.Status.InfrastructureReady {
 		log.Info("cluster is not ready yet, requeueing")
 		return ctrl.Result{Requeue: true}, nil
