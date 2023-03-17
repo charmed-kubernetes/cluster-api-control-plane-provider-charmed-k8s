@@ -203,8 +203,6 @@ spec:
                   that still have not been created.
                 format: int32
                 type: integer
-            required:
-            - initialized
             type: object
         type: object
     served: true
