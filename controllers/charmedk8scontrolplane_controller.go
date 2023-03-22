@@ -226,7 +226,7 @@ func (r *CharmedK8sControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 			log.Error(err, "failed to update CharmedK8sControlPlane Status")
 		}
 
-		// Always attempt to Patch the MicroK8sControlPlane object and status after each reconciliation.
+		// Always attempt to Patch the CharmedK8sControlPlane object and status after each reconciliation.
 		if err := patchCharmedK8sControlPlane(ctx, patchHelper, kcp, patch.WithStatusObservedGeneration{}); err != nil {
 			log.Error(err, "failed to patch CharmedK8sControlPlane")
 		}
@@ -852,7 +852,7 @@ func (r *CharmedK8sControlPlaneReconciler) updateStatus(ctx context.Context, kcp
 	kubeclient, err := r.kubeClientForCluster(ctx, cluster)
 	if err != nil {
 		log.Error(err, "failed to get kubernetes client for the cluster")
-		return nil
+		return err
 	}
 
 	// kubeclient can be nil if the secret did not exist yet
