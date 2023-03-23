@@ -20,18 +20,29 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net"
 	"strings"
 	"time"
 
 	bootstrapv1beta1 "github.com/charmed-kubernetes/cluster-api-bootstrap-provider-charmed-k8s/api/v1beta1"
+	controlplanev1beta1 "github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/api/v1beta1"
+	juju "github.com/charmed-kubernetes/cluster-api-provider-juju/juju"
+	"github.com/pkg/errors"
+	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v2"
 	kcore "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/storage/names"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/connrotation"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/external"
@@ -41,16 +52,30 @@ import (
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	controlplanev1beta1 "github.com/charmed-kubernetes/cluster-api-control-plane-provider-charmed-k8s/api/v1beta1"
-	juju "github.com/charmed-kubernetes/cluster-api-provider-juju/juju"
-	"github.com/pkg/errors"
 )
 
 const controllerDataSecretName = "juju-controller-data"
 const requeueTime = 30 * time.Second
+
+type kubernetesClient struct {
+	*kubernetes.Clientset
+
+	dialer *connrotation.Dialer
+}
+
+// Close kubernetes client.
+func (k *kubernetesClient) Close() error {
+	k.dialer.CloseAll()
+
+	return nil
+}
+
+func newDialer() *connrotation.Dialer {
+	return connrotation.NewDialer((&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext)
+}
 
 type JujuConfig struct {
 	Details struct {
@@ -93,7 +118,7 @@ type CharmedK8sControlPlaneReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
-func (r *CharmedK8sControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *CharmedK8sControlPlaneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
 	log := log.FromContext(ctx)
 
 	// Fetch the CharmedK8sControlPlane instance.
@@ -111,7 +136,7 @@ func (r *CharmedK8sControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Info("waiting for cluster owner to be found")
-			return ctrl.Result{RequeueAfter: requeueTime}, nil
+			return ctrl.Result{Requeue: true}, nil
 		}
 		log.Error(err, "failed to get owner Cluster")
 		return ctrl.Result{}, err
@@ -150,6 +175,13 @@ func (r *CharmedK8sControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// Initialize the patch helper.
+	patchHelper, err := patch.NewHelper(kcp, r.Client)
+	if err != nil {
+		log.Error(err, "failed to configure the patch helper")
+		return ctrl.Result{Requeue: true}, nil
+	}
+
 	// Get config data from secret
 	jujuConfig, err := getJujuConfigFromSecret(ctx, cluster, r.Client)
 	if err != nil {
@@ -158,7 +190,7 @@ func (r *CharmedK8sControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 	}
 	if jujuConfig == nil {
 		log.Info("juju controller configuration was nil, requeuing")
-		return ctrl.Result{RequeueAfter: requeueTime}, nil
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	connectorConfig := juju.Configuration{
@@ -183,8 +215,25 @@ func (r *CharmedK8sControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 
 	if modelUUID == "" {
 		log.Info("model uuid was empty", "model", modelName)
-		return ctrl.Result{RequeueAfter: requeueTime}, nil
+		return ctrl.Result{Requeue: true}, nil
 	}
+
+	defer func() {
+		log.Info("attempting to set control plane status")
+
+		// Always attempt to update status.
+		if err := r.updateStatus(ctx, kcp, cluster); err != nil {
+			log.Error(err, "failed to update CharmedK8sControlPlane Status")
+		}
+
+		// Always attempt to Patch the CharmedK8sControlPlane object and status after each reconciliation.
+		if err := patchCharmedK8sControlPlane(ctx, patchHelper, kcp, patch.WithStatusObservedGeneration{}); err != nil {
+			log.Error(err, "failed to patch CharmedK8sControlPlane")
+		}
+
+		res = ctrl.Result{RequeueAfter: requeueTime}
+		log.Info("successfully updated control plane status")
+	}()
 
 	// Update ownerrefs on infra templates
 	log.Info("updating owner references on infra templates")
@@ -237,8 +286,41 @@ func (r *CharmedK8sControlPlaneReconciler) Reconcile(ctx context.Context, req ct
 // SetupWithManager sets up the controller with the Manager.
 func (r *CharmedK8sControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{
+			RateLimiter: workqueue.NewMaxOfRateLimiter(
+				workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond, 5*time.Minute),
+				&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(10), 100)},
+			),
+		}).
 		For(&controlplanev1beta1.CharmedK8sControlPlane{}).
 		Complete(r)
+}
+
+func patchCharmedK8sControlPlane(ctx context.Context, patchHelper *patch.Helper, kcp *controlplanev1beta1.CharmedK8sControlPlane, opts ...patch.Option) error {
+	// Always update the readyCondition by summarizing the state of other conditions.
+	conditions.SetSummary(kcp,
+		conditions.WithConditions(
+			clusterv1.MachinesCreatedCondition,
+			clusterv1.ResizedCondition,
+			clusterv1.MachinesReadyCondition,
+		),
+	)
+
+	opts = append(opts,
+		patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
+			clusterv1.MachinesCreatedCondition,
+			clusterv1.ReadyCondition,
+			clusterv1.ResizedCondition,
+			clusterv1.MachinesReadyCondition,
+		}},
+	)
+
+	// Patch the object, ignoring conflicts on the conditions owned by this controller.
+	return patchHelper.Patch(
+		ctx,
+		kcp,
+		opts...,
+	)
 }
 
 func (r *CharmedK8sControlPlaneReconciler) reconcileExternalReference(ctx context.Context, ref kcore.ObjectReference, cluster *clusterv1.Cluster) error {
@@ -510,7 +592,7 @@ func (r *CharmedK8sControlPlaneReconciler) reconcileDelete(ctx context.Context, 
 
 	conditions.MarkFalse(kcp, clusterv1.ResizedCondition, clusterv1.DeletingReason, clusterv1.ConditionSeverityInfo, "")
 	// Requeue the deletion so we can check to make sure machines got cleaned up
-	return ctrl.Result{RequeueAfter: requeueTime}, nil
+	return ctrl.Result{Requeue: true}, nil
 }
 
 func (r *CharmedK8sControlPlaneReconciler) generateBootstrapConfig(ctx context.Context, kcp *controlplanev1beta1.CharmedK8sControlPlane, spec *bootstrapv1beta1.CharmedK8sConfigSpec) (*kcore.ObjectReference, error) {
@@ -617,7 +699,7 @@ func (r *CharmedK8sControlPlaneReconciler) reconcileKubeconfig(ctx context.Conte
 					// check for completion
 					if !(operation.Status == "completed") {
 						log.Info("operation is not complete, requeueing", "operation", operation)
-						return ctrl.Result{RequeueAfter: requeueTime}, nil
+						return ctrl.Result{Requeue: true}, nil
 					} else {
 						log.Info("operation is complete", "operation", operation)
 						if len(operation.Actions) != 1 {
@@ -647,7 +729,7 @@ func (r *CharmedK8sControlPlaneReconciler) reconcileKubeconfig(ctx context.Conte
 				}
 			} else {
 				log.Info("kubernetes-control-plane units are not active/idle, requeueing")
-				return ctrl.Result{RequeueAfter: requeueTime}, nil
+				return ctrl.Result{Requeue: true}, nil
 			}
 		} else {
 			log.Error(err, "error getting kubeconfig secret", "secret", kubeConfigSecret.Name)
@@ -656,6 +738,48 @@ func (r *CharmedK8sControlPlaneReconciler) reconcileKubeconfig(ctx context.Conte
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// kubeClientForCluster will fetch a kubeconfig secret based on cluster name/namespace,
+// use it to create a clientset, and return a kubernetes client.
+func (r *CharmedK8sControlPlaneReconciler) kubeClientForCluster(ctx context.Context, cluster *clusterv1.Cluster) (*kubernetesClient, error) {
+	log := log.FromContext(ctx)
+
+	kubeConfigSecret := &kcore.Secret{}
+	objectKey := client.ObjectKey{
+		Namespace: cluster.Namespace,
+		Name:      cluster.Name + "-kubeconfig",
+	}
+
+	err := r.Get(ctx, objectKey, kubeConfigSecret)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			log.Info("kubeconfig secret not found, returning nil kubernetes client")
+			return nil, nil
+		} else {
+			log.Error(err, "error getting kubeconfig secret")
+			return nil, err
+		}
+	}
+
+	config, err := clientcmd.RESTConfigFromKubeConfig(kubeConfigSecret.Data["value"])
+	if err != nil {
+		log.Error(err, "error creating rest config")
+		return nil, err
+	}
+
+	dialer := newDialer()
+	config.Dial = dialer.DialContext
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &kubernetesClient{
+		Clientset: clientset,
+		dialer:    dialer,
+	}, nil
 }
 
 func getJujuConfigFromSecret(ctx context.Context, cluster *clusterv1.Cluster, c client.Client) (*JujuConfig, error) {
@@ -685,4 +809,166 @@ func getJujuConfigFromSecret(ctx context.Context, cluster *clusterv1.Cluster, c 
 
 	return &config, nil
 
+}
+
+func (r *CharmedK8sControlPlaneReconciler) updateStatus(ctx context.Context, kcp *controlplanev1beta1.CharmedK8sControlPlane, cluster *clusterv1.Cluster) error {
+	clusterSelector := &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			clusterv1.ClusterLabelName:             cluster.Name,
+			clusterv1.MachineControlPlaneLabelName: "",
+		},
+	}
+
+	selector, err := metav1.LabelSelectorAsSelector(clusterSelector)
+	if err != nil {
+		// Since we are building up the LabelSelector above, this should not fail
+		return errors.Wrap(err, "failed to parse label selector")
+	}
+	// Copy label selector to its status counterpart in string format.
+	// This is necessary for CRDs including scale subresources.
+	kcp.Status.Selector = selector.String()
+
+	ownedMachines, err := r.getControlPlaneMachinesForCluster(ctx, util.ObjectKey(cluster))
+	if err != nil {
+		return err
+	}
+
+	replicas := int32(len(ownedMachines))
+
+	// set basic data that does not require interacting with the workload cluster
+	kcp.Status.Ready = false
+	kcp.Status.Replicas = replicas
+	kcp.Status.ReadyReplicas = 0
+	kcp.Status.UnavailableReplicas = replicas
+	kcp.Status.Initialized = false
+
+	// Return early if the deletion timestamp is set, we dont need to update status during deletion
+	if !kcp.DeletionTimestamp.IsZero() {
+		return nil
+	}
+
+	log := log.FromContext(ctx)
+
+	kubeclient, err := r.kubeClientForCluster(ctx, cluster)
+	if err != nil {
+		log.Error(err, "failed to get kubernetes client for the cluster")
+		return err
+	}
+
+	// kubeclient can be nil if the secret did not exist yet
+	// only do client related status updates if we have a client
+	if kubeclient != nil {
+		defer kubeclient.Close()
+
+		log.Info("Updating provider IDs")
+		err = r.updateProviderID(ctx, cluster, kubeclient)
+		if err != nil {
+			log.Error(err, "failed to update provider ID of nodes")
+			return err
+		}
+
+		nodeSelector := labels.NewSelector()
+		req, err := labels.NewRequirement("juju-application", selection.Equals, []string{"kubernetes-control-plane"})
+		if err != nil {
+			return err
+		}
+
+		nodes, err := kubeclient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+			LabelSelector: nodeSelector.Add(*req).String(),
+		})
+
+		if err != nil {
+			log.Error(err, "failed to list controlplane nodes")
+			return err
+		}
+
+		for _, node := range nodes.Items {
+			if util.IsNodeReady(&node) {
+				kcp.Status.ReadyReplicas++
+			}
+		}
+
+		kcp.Status.UnavailableReplicas = replicas - kcp.Status.ReadyReplicas
+
+		if len(nodes.Items) > 0 {
+			log.Info("setting initialized status to true since the API server is contactable and nodes were retrieved")
+			kcp.Status.Initialized = true
+		}
+
+		if kcp.Status.ReadyReplicas > 0 {
+			log.Info("setting ready status to true as at least 1 replica is ready")
+			kcp.Status.Ready = true
+		}
+
+	} else {
+		log.Info("kubeconfig secret does not exist yet, status that relies on apiserver connectivity will not be set")
+	}
+
+	log.WithValues("count", kcp.Status.ReadyReplicas).Info("ready replicas")
+
+	return nil
+}
+
+func (r *CharmedK8sControlPlaneReconciler) updateProviderID(ctx context.Context, cluster *clusterv1.Cluster, kubeclient *kubernetesClient) error {
+	nodes, err := kubeclient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+
+	log := log.FromContext(ctx)
+
+	if err != nil {
+		log.Error(err, "failed to list nodes")
+		return err
+	}
+
+	selector := map[string]string{
+		clusterv1.ClusterLabelName: cluster.Name,
+	}
+
+	machineList := clusterv1.MachineList{}
+	if err := r.Client.List(
+		ctx,
+		&machineList,
+		client.InNamespace(cluster.Namespace),
+		client.MatchingLabels(selector),
+	); err != nil {
+		return err
+	}
+
+	for _, node := range nodes.Items {
+		if node.Spec.ProviderID != "" {
+			log.Info("provider ID is already set on node", "node", node.Name, "providerId", node.Spec.ProviderID)
+			continue
+		}
+
+		// Machine provider ID is the juju hostname, which is also the name of the node
+		// We need to find the machine whose providerID matches the node name, and then set the corresponding nodes provider ID to match
+		log.Info("looking for machine with providerID matching node name", "node", node.Name)
+		machine := r.findMachineWithProviderID(machineList.Items, node.Name)
+		if machine != nil {
+			log.Info("found machine match", "machine", machine)
+			node.Spec.ProviderID = *machine.Spec.ProviderID
+			updatedNode, err := kubeclient.CoreV1().Nodes().Update(ctx, &node, metav1.UpdateOptions{})
+			if err != nil {
+				log.Error(err, "failed to update node provider ID", "node", node.Name)
+				return err
+			}
+			log.Info("updated node provider ID", "node", updatedNode.Name, "providerId", updatedNode.Spec.ProviderID)
+		} else {
+			log.Info("did not find matching machine yet")
+		}
+
+	}
+	return nil
+}
+
+func (r *CharmedK8sControlPlaneReconciler) findMachineWithProviderID(machineList []clusterv1.Machine, ID string) *clusterv1.Machine {
+	for _, machine := range machineList {
+		// Machine resource only gets providerID set once the infra machine is marked as ready
+		// so its likely to encounter machine resources without a providerID
+		if machine.Spec.ProviderID != nil {
+			if *machine.Spec.ProviderID == ID {
+				return &machine
+			}
+		}
+	}
+	return nil
 }

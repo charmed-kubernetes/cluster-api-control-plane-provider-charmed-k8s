@@ -145,8 +145,6 @@ github.com/cespare/xxhash/v2 v2.1.2 h1:YRXhKfTDauu4ajMg1TPgFO5jnlC2HCbmLXMcTG5cb
 github.com/cespare/xxhash/v2 v2.1.2/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/charmed-kubernetes/cluster-api-bootstrap-provider-charmed-k8s v0.0.0-20230206182445-ed51d8bd120d h1:zuREGURvaoVx+1BakwUsUlQCD8SJEHc4tpKkyO+kyqY=
 github.com/charmed-kubernetes/cluster-api-bootstrap-provider-charmed-k8s v0.0.0-20230206182445-ed51d8bd120d/go.mod h1:SSubNXrjRqFZkHjMqiw/i7vodLBjh0Y+vLnTrhaSyDM=
-github.com/charmed-kubernetes/cluster-api-provider-juju v0.0.0-20230309155616-f1f9ca5b1353 h1:+oOGy+3Qs+3uNTqxABnYDe05ftjz+l5JOVAiQBPRYms=
-github.com/charmed-kubernetes/cluster-api-provider-juju v0.0.0-20230309155616-f1f9ca5b1353/go.mod h1:LBvy7kKMsy7yyS3OOeXlj19oBePC1oIBitViIalRlMg=
 github.com/charmed-kubernetes/cluster-api-provider-juju v0.0.0-20230313164432-7338531245c8 h1:CQLKXpyKHScvIi9LWjw7mZ1a2kclCkfBQuCtux2TZB8=
 github.com/charmed-kubernetes/cluster-api-provider-juju v0.0.0-20230313164432-7338531245c8/go.mod h1:LBvy7kKMsy7yyS3OOeXlj19oBePC1oIBitViIalRlMg=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=

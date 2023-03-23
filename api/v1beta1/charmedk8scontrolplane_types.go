@@ -107,6 +107,7 @@ type CharmedK8sControlPlaneStatus struct {
 
 	// Initialized is true when the target cluster has completed initialization such that at least once,
 	// the target's control plane has been contactable.
+	// +optional
 	Initialized bool `json:"initialized"`
 }
 
