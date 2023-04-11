@@ -860,13 +860,6 @@ func (r *CharmedK8sControlPlaneReconciler) updateStatus(ctx context.Context, kcp
 	if kubeclient != nil {
 		defer kubeclient.Close()
 
-		log.Info("Updating provider IDs")
-		err = r.updateProviderID(ctx, cluster, kubeclient)
-		if err != nil {
-			log.Error(err, "failed to update provider ID of nodes")
-			return err
-		}
-
 		nodeSelector := labels.NewSelector()
 		req, err := labels.NewRequirement("juju-application", selection.Equals, []string{"kubernetes-control-plane"})
 		if err != nil {
@@ -906,69 +899,5 @@ func (r *CharmedK8sControlPlaneReconciler) updateStatus(ctx context.Context, kcp
 
 	log.WithValues("count", kcp.Status.ReadyReplicas).Info("ready replicas")
 
-	return nil
-}
-
-func (r *CharmedK8sControlPlaneReconciler) updateProviderID(ctx context.Context, cluster *clusterv1.Cluster, kubeclient *kubernetesClient) error {
-	nodes, err := kubeclient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-
-	log := log.FromContext(ctx)
-
-	if err != nil {
-		log.Error(err, "failed to list nodes")
-		return err
-	}
-
-	selector := map[string]string{
-		clusterv1.ClusterLabelName: cluster.Name,
-	}
-
-	machineList := clusterv1.MachineList{}
-	if err := r.Client.List(
-		ctx,
-		&machineList,
-		client.InNamespace(cluster.Namespace),
-		client.MatchingLabels(selector),
-	); err != nil {
-		return err
-	}
-
-	for _, node := range nodes.Items {
-		if node.Spec.ProviderID != "" {
-			log.Info("provider ID is already set on node", "node", node.Name, "providerId", node.Spec.ProviderID)
-			continue
-		}
-
-		// Machine provider ID is the juju hostname, which is also the name of the node
-		// We need to find the machine whose providerID matches the node name, and then set the corresponding nodes provider ID to match
-		log.Info("looking for machine with providerID matching node name", "node", node.Name)
-		machine := r.findMachineWithProviderID(machineList.Items, node.Name)
-		if machine != nil {
-			log.Info("found machine match", "machine", machine)
-			node.Spec.ProviderID = *machine.Spec.ProviderID
-			updatedNode, err := kubeclient.CoreV1().Nodes().Update(ctx, &node, metav1.UpdateOptions{})
-			if err != nil {
-				log.Error(err, "failed to update node provider ID", "node", node.Name)
-				return err
-			}
-			log.Info("updated node provider ID", "node", updatedNode.Name, "providerId", updatedNode.Spec.ProviderID)
-		} else {
-			log.Info("did not find matching machine yet")
-		}
-
-	}
-	return nil
-}
-
-func (r *CharmedK8sControlPlaneReconciler) findMachineWithProviderID(machineList []clusterv1.Machine, ID string) *clusterv1.Machine {
-	for _, machine := range machineList {
-		// Machine resource only gets providerID set once the infra machine is marked as ready
-		// so its likely to encounter machine resources without a providerID
-		if machine.Spec.ProviderID != nil {
-			if *machine.Spec.ProviderID == ID {
-				return &machine
-			}
-		}
-	}
 	return nil
 }
