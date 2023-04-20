@@ -788,7 +788,7 @@ func getJujuConfigFromSecret(ctx context.Context, cluster *clusterv1.Cluster, c 
 	configSecret := &kcore.Secret{}
 	objectKey := client.ObjectKey{
 		Namespace: cluster.Namespace,
-		Name:      controllerDataSecretName,
+		Name:      cluster.Name + "-" + controllerDataSecretName,
 	}
 	if err := c.Get(ctx, objectKey, configSecret); err != nil {
 		if apierrors.IsNotFound(err) {
