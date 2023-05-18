@@ -798,7 +798,7 @@ func getJujuConfigFromSecret(ctx context.Context, cluster *clusterv1.Cluster, c 
 		}
 	}
 	data := string(configSecret.Data["controller-data"][:])
-	split := strings.Split(data, fmt.Sprintf("%s:\n", cluster.Name+"-k8s-cloud"))
+	split := strings.SplitN(data, ":\n", 2)
 	yam := split[1]
 	config := JujuConfig{}
 	err := yaml.Unmarshal([]byte(yam), &config)
